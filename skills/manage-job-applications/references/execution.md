@@ -48,3 +48,13 @@ Follow [onboarding.md](onboarding.md) for the storage choice, profile intake, ru
 ## Antigravity usage
 
 Use this workflow with Antigravity’s available browser, local Node toolkit and connected storage. The project owner reports smooth career-portal login in Antigravity. Treat this as reported experience; inspect the current portal and verify each outcome. Other AI hosts may offer different tools and sign-in methods.
+
+## Standing authorization for approved queue
+
+When the user grants standing authorization for their approved job queue:
+1. Submissions are executed automatically (`--submit` or `--approved-queue`) across ready, validated applications without routine per-job permission prompts ("Would you like to proceed?").
+2. The runner strictly validates required candidate fields and exact role-matched CVs before submitting.
+3. The runner gracefully skips blockers: duplicate `CONFIRMED` jobs, unconfirmed `UNCERTAIN` attempts, inactive/closed jobs (404), interactive CAPTCHAs, missing tailored CVs, or unmapped screening questions.
+4. Blockers are cleanly logged and reported in the run summary, allowing subsequent queue jobs to continue.
+5. Platform-enforced security approvals (such as interactive CAPTCHAs, MFA, or OS-level approvals) are kept intact and never bypassed.
+

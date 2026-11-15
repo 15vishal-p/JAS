@@ -8,6 +8,7 @@
  *   - Automatic retry blocking for UNCERTAIN jobs
  *   - Country-aware statutory question resolution
  *   - CLI argument parsing & dry-run default safety
+ *   - Standing Authorization policy parsing for approved queue
  */
 
 const assert = require('assert');
@@ -46,12 +47,15 @@ console.log('======================================================\n');
 
 // 1. Domain Whitelist Verification
 runTest('Domain Security: Allows whitelisted domains', () => {
-  const allowed = ['jobs.ashbyhq.com', 'boards.greenhouse.io', 'jobs.smartrecruiters.com'];
+  const allowed = ['jobs.ashbyhq.com', 'boards.greenhouse.io', 'job-boards.greenhouse.io', 'jobs.smartrecruiters.com'];
   const res1 = validateDomain('https://jobs.ashbyhq.com/examplecorp/123/application', allowed);
   assert.strictEqual(res1.hostname, 'jobs.ashbyhq.com');
 
   const res2 = validateDomain('https://subdomain.boards.greenhouse.io/job/456', allowed);
   assert.strictEqual(res2.hostname, 'subdomain.boards.greenhouse.io');
+
+  const res3 = validateDomain('https://job-boards.greenhouse.io/wolt/jobs/8053035', allowed);
+  assert.strictEqual(res3.hostname, 'job-boards.greenhouse.io');
 });
 
 runTest('Domain Security: Rejects unapproved or spoofed domains', () => {
@@ -74,6 +78,10 @@ runTest('URL Extraction: Accurately parses company slug and job ID', () => {
   const details2 = extractJobDetails('https://boards.greenhouse.io/databricks/jobs/7891011');
   assert.strictEqual(details2.company, 'databricks');
   assert.strictEqual(details2.jobId, '7891011');
+
+  const details3 = extractJobDetails('https://job-boards.greenhouse.io/wolt/jobs/8053035');
+  assert.strictEqual(details3.company, 'wolt');
+  assert.strictEqual(details3.jobId, '8053035');
 });
 
 // 3. Exact CV-to-Job-ID Verification
@@ -167,6 +175,13 @@ runTest('CLI Defaults: Defaults to safe dry-run mode without --submit', () => {
 
   const submitOpts = parseArgs(['--url=https://jobs.ashbyhq.com/example/123/application', '--submit']);
   assert.strictEqual(submitOpts.submit, true, 'Explicit --submit flag should authorize submission');
+});
+
+// 7. Standing Authorization for Approved Queue
+runTest('Standing Authorization: --approved-queue automatically sets submit=true and approvedQueue=true', () => {
+  const queueOpts = parseArgs(['--url=https://boards.greenhouse.io/nlighten/jobs/5006712101', '--approved-queue']);
+  assert.strictEqual(queueOpts.approvedQueue, true, 'Should mark approvedQueue as true');
+  assert.strictEqual(queueOpts.submit, true, 'Standing authorization must automatically enable submission');
 });
 
 console.log(`\nVerification Suite Summary: ${passedTests}/${totalTests} tests passed.\n`);
