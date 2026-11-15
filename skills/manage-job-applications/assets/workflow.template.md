@@ -31,6 +31,7 @@ CV editor and output rules {{CV_RULES}}
 | CV audits | {{AUDITS_REFERENCE}} |
 | Application evidence | {{APPLICATIONS_REFERENCE}} |
 | Handoff index | {{HANDOFF_REFERENCE}} |
+| Learning record | {{LEARNING_REFERENCE}} |
 
 ## Role order and assignments
 

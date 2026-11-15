@@ -12,6 +12,7 @@ Create or map these locations without overwriting existing files. Record actual 
 Job Applications/
   setup.md
   workflow.md
+  learning.md
   prompts/
     job-search.md
     cv-creation.md
