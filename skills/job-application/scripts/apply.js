@@ -583,7 +583,7 @@ async function runApplication(options) {
         if (await reactSelect.locator('.select__input-container').count() > 0) {
           await reactSelect.click();
           await page.waitForTimeout(300);
-          await page.locator('.select__option:has-text("No")').first().click();
+          await page.locator('.select__option').filter({ hasText: /^No$/ }).first().click();
           summary['Question: National of Country'] = 'No';
           console.log(`[Form Question]: "${text}" -> Selected "No" via React-select.`);
         }
@@ -592,7 +592,7 @@ async function runApplication(options) {
         if (await reactSelect.locator('.select__input-container').count() > 0) {
           await reactSelect.click();
           await page.waitForTimeout(300);
-          await page.locator('.select__option:has-text("Man")').first().click();
+          await page.locator('.select__option').filter({ hasText: /^Man$/ }).first().click();
           summary['Gender'] = 'Man';
           console.log(`[Form Question]: "${text}" -> Selected "Man" via React-select.`);
         }
