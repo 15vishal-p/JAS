@@ -1,0 +1,27 @@
+{
+  "submissions": [
+    {
+      "jobId": "example-uuid-confirmed-001",
+      "company": "ExampleCorp",
+      "title": "Finance Operations Associate — Finance",
+      "url": "https://jobs.ashbyhq.com/examplecorp/example-uuid-confirmed-001/application",
+      "status": "CONFIRMED",
+      "submittedAt": "2026-11-15T09:00:00Z",
+      "cvFile": "ExampleCorp_Finance_Operations_Associate_example-uuid-confirmed-001_FlowCV_2026-11-15.pdf",
+      "cvHash": "a1b2c3d4",
+      "screenshot": "example-uuid-confirmed-001_confirm.png"
+    },
+    {
+      "jobId": "example-uuid-uncertain-002",
+      "company": "SampleTravel",
+      "title": "Senior Accountant — Finance Operations",
+      "url": "https://jobs.ashbyhq.com/sampletravel/example-uuid-uncertain-002/application",
+      "status": "UNCERTAIN",
+      "submittedAt": "2026-11-15T09:30:00Z",
+      "cvFile": "SampleTravel_Senior_Accountant_example-uuid-uncertain-002_FlowCV_2026-11-15.pdf",
+      "cvHash": "e5f6a7b8",
+      "screenshot": "example-uuid-uncertain-002_uncertain.png",
+      "reason": "Submit clicked in headless mode; success confirmation was not returned within timeout. Automatic retries blocked pending manual reconciliation or employer receipt."
+    }
+  ]
+}

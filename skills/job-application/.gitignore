@@ -1,0 +1,29 @@
+# Private candidate profile containing personal data (PII)
+# Only config/profile.example.json is committed to version control
+config/profile.json
+
+# Live submission records and private receipts
+# Only data/submissions_history.example.json is committed
+data/submissions_history.json
+
+# Persistent browser profiles (cookies, session tokens, cache)
+browser_profile/
+*.local/
+userData/
+
+# Screenshots and visual captures
+screenshots/
+*.png
+*.jpg
+*.jpeg
+
+# Tailored CV files and personal documents
+*.pdf
+*.docx
+
+# Logs and runtime artifacts
+*.log
+npm-debug.log*
+
+# Node modules
+node_modules/

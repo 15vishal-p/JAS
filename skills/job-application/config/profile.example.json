@@ -1,0 +1,64 @@
+{
+  "candidate": {
+    "fullName": "Jane Doe",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "email": "jane.doe@example.com",
+    "phone": "+49 151 0000000",
+    "phoneCountryCode": "+49",
+    "phoneNumber": "1510000000",
+    "currentCity": "Frankfurt, Germany",
+    "preferredRelocationCity": "Berlin, Germany",
+    "willingToRelocate": true,
+    "linkedin": "https://www.linkedin.com/in/example-candidate",
+    "citizenship": "Non-EU / Third-Country National",
+    "requiresSponsorship": true,
+    "statutoryRoute": "German EU Blue Card (Section 18g AufenthG, recent graduate threshold €45,934.20/yr)",
+    "earliestStartDate": "2026-12-01",
+    "noticePeriodDays": 0,
+    "salaryExpectationEUR": "€48,000 - €55,000 gross/year (EU Blue Card qualifying)",
+    "education": {
+      "degree": "Master of Science in Finance and Accounting",
+      "institution": "European Partner University",
+      "completionYear": 2024,
+      "undergraduate": "Bachelor of Commerce in Accounting"
+    },
+    "behavioralAnswers": {
+      "unfairAdvantage": "Strong dual foundation in technical corporate finance and high-volume financial reconciliations, combined with Python and SQL automation capabilities that streamline variance analysis and financial reporting.",
+      "mostImpressiveThing": "Engineered automated financial reconciliation models and data workflows that streamlined complex cross-ledger reconciliations and eliminated manual error-prone verification processes across large transaction volumes.",
+      "additionalInfo": "Master's degree in Finance and Accounting (2024). 3+ years of professional financial operations and ERP experience. Authorized to work under statutory EU Blue Card route; requires work visa sponsorship. Immediate availability."
+    },
+    "statutoryByCountry": {
+      "Slovakia": {
+        "authorizedInCountry": true,
+        "requiresSponsorship": false,
+        "details": "Direct statutory employment access under Slovak Act 5/2004 Coll. (no work permit sponsorship needed for Slovak university graduates)"
+      },
+      "Germany": {
+        "authorizedInCountry": false,
+        "requiresSponsorship": true,
+        "details": "German EU Blue Card (Section 18g AufenthG, reduced salary threshold €45,934.20/yr for university graduates within 3 years)"
+      },
+      "Netherlands": {
+        "authorizedInCountry": false,
+        "requiresSponsorship": true,
+        "details": "Requires Dutch Highly Skilled Migrant (Kennismigrant) or EU Blue Card visa sponsorship"
+      },
+      "DefaultSchengen": {
+        "authorizedInCountry": false,
+        "requiresSponsorship": true,
+        "details": "Requires EU Blue Card or statutory work visa sponsorship"
+      }
+    }
+  },
+  "security": {
+    "allowedDomains": [
+      "jobs.ashbyhq.com",
+      "boards.greenhouse.io",
+      "job-boards.greenhouse.io",
+      "jobs.smartrecruiters.com",
+      "apply.workable.com"
+    ],
+    "approvedCvDirectory": "./approved_cvs"
+  }
+}
