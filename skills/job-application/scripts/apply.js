@@ -350,8 +350,12 @@ async function runApplication(options) {
       process.exit(1);
     }
 
-    // Check for CAPTCHA / Bot detection
-    if (/verify you are human|turnstile|recaptcha|cf-challenge/i.test(pageContent)) {
+    // Check for Interactive CAPTCHA / Bot challenge (excludes passive background scripts)
+    const visibleText = await page.evaluate(() => document.body.innerText).catch(() => '');
+    const hasVisibleChallenge = /verify you are human|turnstile challenge|security check to continue|please complete the security check/i.test(visibleText);
+    const hasActiveChallengeFrame = await page.locator('iframe[src*="challenges.cloudflare.com"], iframe[title*="reCAPTCHA"][src*="bframe"]').isVisible().catch(() => false);
+
+    if (hasVisibleChallenge || hasActiveChallengeFrame) {
       console.warn(`[BLOCKED - CAPTCHA] Interactive CAPTCHA challenge detected on ${opts.url}. Platform safeguards preserved.`);
       const captchaScreenshot = path.join(opts.screenshotsDir, `${jobId}_captcha.png`);
       await page.screenshot({ path: captchaScreenshot, fullPage: true }).catch(() => {});
@@ -457,7 +461,17 @@ async function runApplication(options) {
     const cityTarget = country === 'Netherlands' ? 'Amsterdam, Netherlands' : (country === 'Germany' ? 'Berlin, Germany' : 'Bratislava, Slovakia');
 
     if (await ghLocation.isVisible().catch(() => false)) {
-      await ghLocation.fill(cityTarget);
+      await ghLocation.click();
+      const citySearch = cityTarget.split(',')[0].trim();
+      await ghLocation.type(citySearch, { delay: 50 });
+      await page.waitForTimeout(1000);
+      const option = page.locator('.select__option').filter({ hasText: citySearch }).first();
+      if (await option.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await option.click();
+      } else {
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Enter');
+      }
       summary['Location'] = cityTarget;
     } else if (await ashbyLocation.isVisible().catch(() => false)) {
       const currentVal = await ashbyLocation.inputValue();
@@ -514,7 +528,7 @@ async function runApplication(options) {
       const forAttr = await label.getAttribute('for').catch(() => null);
       if (!forAttr) continue;
 
-      const target = page.locator(`#${forAttr}`);
+      const target = page.locator(`[id="${forAttr}"]`);
       if (!await target.count()) continue;
 
       if (/authorized to work|legal right to work/i.test(text)) {
@@ -555,6 +569,33 @@ async function runApplication(options) {
         const passion = "Outside of work, I am passionate about quantitative financial modeling and building automated Python data pipelines to analyze macroeconomic indicators and market structures.";
         await target.fill(passion);
         summary['Passion'] = 'Populated verified profile facts';
+      } else if (/privacy statement|recruitment privacy/i.test(text)) {
+        const reactSelect = target.locator('..').locator('..');
+        if (await reactSelect.locator('.select__input-container').count() > 0) {
+          await reactSelect.click();
+          await page.waitForTimeout(300);
+          await page.locator('.select__option:has-text("I understand")').first().click();
+          summary['Privacy Statement'] = 'Acknowledged';
+          console.log(`[Form Question]: "${text}" -> Acknowledged via React-select.`);
+        }
+      } else if (/national of the country/i.test(text)) {
+        const reactSelect = target.locator('..').locator('..');
+        if (await reactSelect.locator('.select__input-container').count() > 0) {
+          await reactSelect.click();
+          await page.waitForTimeout(300);
+          await page.locator('.select__option:has-text("No")').first().click();
+          summary['Question: National of Country'] = 'No';
+          console.log(`[Form Question]: "${text}" -> Selected "No" via React-select.`);
+        }
+      } else if (/gender/i.test(text)) {
+        const reactSelect = target.locator('..').locator('..');
+        if (await reactSelect.locator('.select__input-container').count() > 0) {
+          await reactSelect.click();
+          await page.waitForTimeout(300);
+          await page.locator('.select__option:has-text("Man")').first().click();
+          summary['Gender'] = 'Man';
+          console.log(`[Form Question]: "${text}" -> Selected "Man" via React-select.`);
+        }
       }
     }
 
@@ -587,21 +628,32 @@ async function runApplication(options) {
     }
 
     // 8. Consent Checkboxes
-    const consentCheckbox = page.locator('#gdpr_processing_consent_given_1').or(page.getByRole('checkbox', { name: /consent|understand|agree/i })).or(page.locator('label:has-text("I agree"), label:has-text("consent")')).first();
-    if (await consentCheckbox.isVisible().catch(() => false)) {
-      await consentCheckbox.check().catch(() => consentCheckbox.click());
-      summary['Consent'] = 'Checked';
+    const consentBoxes = page.locator('#gdpr_processing_consent_given_1, #gdpr_demographic_data_consent_given_1, input[type="checkbox"][id*="consent"], input[type="checkbox"][name*="consent"]');
+    const boxCount = await consentBoxes.count();
+    for (let b = 0; b < boxCount; b++) {
+      const box = consentBoxes.nth(b);
+      if (await box.isVisible().catch(() => false)) {
+        await box.check().catch(() => box.click());
+      }
     }
+    summary['Consent'] = 'Checked';
 
     // 9. Attach Verified Exact CV
     console.log(`[Upload] Attaching verified exact CV via setInputFiles: ${cv.path}...`);
     let fileInput = page.locator('#resume, #_systemfield_resume, input[type="file"]').first();
     await fileInput.waitFor({ state: 'attached', timeout: 15000 });
     await fileInput.setInputFiles(cv.path);
-    await page.waitForTimeout(3000);
+
+    // Wait for upload progress bar to finish if present
+    const progressLocator = page.locator('[role="progressbar"], .progress-bar, progress');
+    if (await progressLocator.count() > 0) {
+      console.log('[Upload] Upload progress bar detected. Waiting for upload completion...');
+      await progressLocator.waitFor({ state: 'detached', timeout: 30000 }).catch(() => {});
+    }
+    await page.waitForTimeout(4000);
 
     // Verify CV attachment in DOM
-    const cvBadge = page.locator(`text=${cv.filename}`).or(page.locator('text=.pdf')).or(page.locator('button:has-text("Replace"), label[for="resume"]')).first();
+    const cvBadge = page.locator(`text=${cv.filename}`).or(page.locator('text=.pdf')).or(page.locator('button:has-text("Replace"), label[for="resume"], [aria-label*="Remove"]')).first();
     const isAttached = await cvBadge.isVisible({ timeout: 5000 }).catch(() => false);
     if (!isAttached) {
       console.warn('[Warning] CV badge not visibly confirmed in DOM, checking file input status...');
@@ -643,14 +695,36 @@ async function runApplication(options) {
     await submitBtn.click();
     console.log('[Submit] Clicked Submit button. Waiting for confirmation...');
 
-    // Wait for confirmation
-    const confirmationText = page.getByText(/Success|Your application was successfully submitted|Thank you for applying|Application submitted/i).first();
+    // Wait for submission completion: either the submit button detaches OR a genuine confirmation element appears
+    console.log('[Submit] Clicked Submit button. Waiting for confirmation...');
+    let submissionSuccess = false;
+
     try {
-      await confirmationText.waitFor({ state: 'visible', timeout: 30000 });
+      // 1. Wait for submit button to detach or form to unload
+      await Promise.race([
+        submitBtn.waitFor({ state: 'detached', timeout: 30000 }),
+        page.waitForSelector('#application_confirmation, [class*="confirmation"], h1:has-text("Thank you"), h2:has-text("Success")', { state: 'visible', timeout: 30000 })
+      ]);
+
+      // 2. Look for explicit confirmation headings or text (scoped to avoid false matches in body text)
+      const confirmElement = page.locator('h1, h2, h3, #application_confirmation, [class*="confirmation"]').filter({
+        hasText: /^Success$|Application Submitted|Thank you for applying|Application received|Your application was successfully submitted|Your application has been submitted/i
+      }).first();
+
+      await confirmElement.waitFor({ state: 'visible', timeout: 10000 });
+      submissionSuccess = true;
     } catch (e) {
+      console.warn(`[Submit Confirmation Check]: ${e.message}`);
+    }
+
+    // Check if any error messages are visible on page or submit button is still visible
+    const submitStillVisible = await submitBtn.isVisible().catch(() => false);
+    const hasVisibleErrors = await page.locator('.field-error, [class*="error-message"], [role="alert"]').count().catch(() => 0) > 0;
+
+    if (!submissionSuccess || submitStillVisible || hasVisibleErrors) {
       const uncertainPath = path.join(opts.screenshotsDir, `${jobId}_uncertain.png`);
       await page.screenshot({ path: uncertainPath, fullPage: true });
-      console.error(`\n[UNCERTAIN OUTCOME] Did not detect immediate success message within 30s.`);
+      console.error(`\n[UNCERTAIN OUTCOME] Did not detect confirmed receipt page within timeout, or validation errors remain.`);
       console.error(`Screenshot saved for review: ${uncertainPath}`);
 
       // Record UNCERTAIN in local history to block future retries
@@ -663,12 +737,12 @@ async function runApplication(options) {
         cvFile: cv.filename,
         cvHash: cv.hash,
         screenshot: path.basename(uncertainPath),
-        reason: 'Submit clicked but success confirmation was not returned within timeout. Automatic retries blocked.'
+        reason: 'Submit clicked but success confirmation was not verified or errors remained. Automatic retries blocked.'
       });
 
       await browser.close();
       if (opts.approvedQueue) {
-        return { status: 'UNCERTAIN', jobId, company, reason: 'Timeout waiting for confirmation text' };
+        return { status: 'UNCERTAIN', jobId, company, reason: 'Unconfirmed receipt or validation error' };
       }
       process.exit(1);
     }
