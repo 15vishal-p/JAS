@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 /**
- * Test & Verification Suite for job-application skill runner
+ * Test & Verification Suite for job-application skill runner and discovery
  * Runs comprehensive offline unit and safety checks:
  *   - Exact CV-to-Job-ID resolution and rejection of cross-role reuse
  *   - Target domain whitelisting and security perimeter enforcement
  *   - Duplicate submission prevention for CONFIRMED jobs
  *   - Automatic retry blocking for UNCERTAIN jobs
- *   - Country-aware statutory question resolution
+ *   - Country-aware statutory question resolution (CH, DE, NL, SK)
  *   - CLI argument parsing & dry-run default safety
  *   - Standing Authorization policy parsing for approved queue
+ *   - Discovery module parsing, relevance filtering, and shortfall handling
  */
 
 const assert = require('assert');
@@ -24,6 +25,14 @@ const {
   parseArgs,
   loadSubmissions
 } = require('./apply');
+
+const {
+  getRelevanceMatcher,
+  getSearchTerms,
+  extractListingId,
+  parseCardText,
+  parseArgs: parseDiscoverArgs
+} = require('./discover');
 
 let passedTests = 0;
 let totalTests = 0;
@@ -124,6 +133,9 @@ runTest('Exact CV Matching: Rejects mismatched CV with different Job ID (Zero Fu
 
 // 4. Country Detection and Statutory Question Mapping
 runTest('Statutory Mapping: Correctly separates authorization and sponsorship by jurisdiction', () => {
+  // Switzerland
+  assert.strictEqual(detectCountry('Office in Zurich, Switzerland', 'https://jobs.ashbyhq.com/company/123'), 'Switzerland');
+
   // Netherlands
   assert.strictEqual(detectCountry('Office in Amsterdam, Netherlands', 'https://jobs.ashbyhq.com/wetravel/123'), 'Netherlands');
 
@@ -184,6 +196,65 @@ runTest('Standing Authorization: --approved-queue automatically sets submit=true
   assert.strictEqual(queueOpts.submit, true, 'Standing authorization must automatically enable submission');
 });
 
+// 8. Discovery Module Verification
+runTest('Discovery: Parses vacancy card text and filters relevance cleanly', () => {
+  const cardText = [
+    'Yesterday',
+    'Controlling Data Analyst',
+    'Place of work:',
+    'Basel',
+    'Workload:',
+    '100%',
+    'Contract type:',
+    'Permanent position',
+    'Bank J. Safra Sarasin AG',
+    'New'
+  ].join('\n');
+
+  const cardUrl = 'https://www.jobs.ch/en/vacancies/detail/42c8f837-ad4b-4d46-90dc-981922ad1b61/';
+  const matcher = getRelevanceMatcher('Data Analyst');
+  const parsed = parseCardText(cardText, cardUrl, matcher);
+
+  assert.ok(parsed, 'Card should parse successfully');
+  assert.strictEqual(parsed.listingId, '42c8f837-ad4b-4d46-90dc-981922ad1b61');
+  assert.strictEqual(parsed.title, 'Controlling Data Analyst');
+  assert.strictEqual(parsed.employer, 'Bank J. Safra Sarasin AG');
+  assert.strictEqual(parsed.location, 'Basel');
+  assert.strictEqual(parsed.workload, '100%');
+  assert.strictEqual(parsed.contractType, 'Permanent position');
+});
+
+runTest('Discovery: Rejects unrelated titles to prevent filling lists with irrelevant jobs', () => {
+  const unrelatedText = [
+    '2 days ago',
+    'Senior Java Backend Developer',
+    'Place of work:',
+    'Zurich',
+    'Workload:',
+    '100%',
+    'Contract type:',
+    'Permanent position',
+    'TechCorp AG'
+  ].join('\n');
+
+  const cardUrl = 'https://www.jobs.ch/en/vacancies/detail/11111111-2222-3333-4444-555555555555/';
+  const matcher = getRelevanceMatcher('Data Analyst');
+  const parsed = parseCardText(unrelatedText, cardUrl, matcher);
+
+  assert.strictEqual(parsed, null, 'Unrelated role must be discarded by relevance matcher');
+});
+
+runTest('Discovery: Extracts listing ID accurately from vacancy URL', () => {
+  const id = extractListingId('https://www.jobs.ch/en/vacancies/detail/3afc9c95-7ac3-4bdd-ae21-e1d124c3058f/?source=search');
+  assert.strictEqual(id, '3afc9c95-7ac3-4bdd-ae21-e1d124c3058f');
+});
+
+runTest('Discovery: Expands Swiss Data Analyst search terms correctly', () => {
+  const terms = getSearchTerms('Data Analyst');
+  assert.ok(terms.includes('Data-Analyst'));
+  assert.ok(terms.includes('Datenanalyst'));
+  assert.ok(terms.includes('Power BI Data Analyst'));
+});
 console.log(`\nVerification Suite Summary: ${passedTests}/${totalTests} tests passed.\n`);
 
 if (passedTests !== totalTests) {

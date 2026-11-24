@@ -9,9 +9,10 @@
  *   4. Statutory Country-Aware Question Resolution: Answers work authorization and visa sponsorship as distinct questions based on verified candidate profile.
  *   5. Halts on Unknown/Unmapped Questions: Never guesses or invents answers; exits cleanly for manual review.
  *   6. Duplicate & Uncertain Submission Blocker: Blocks duplicate submissions for confirmed jobs; blocks retries for uncertain jobs until reconciled.
- *   7. Standing Authorization for Approved Queue: When invoked with `--approved-queue`, automatically submits ready, validated applications (`--submit`) without prompting, and gracefully skips blockers (missing CV, CAPTCHA, uncertain, duplicate) to continue queue processing.
- *   8. Multi-ATS Support: Certified for Ashby ATS (`jobs.ashbyhq.com`) and Greenhouse ATS (`boards.greenhouse.io`, `job-boards.greenhouse.io`).
- *   9. Visual Audit Trail: Captures full-page screenshots for dry-runs, confirmed submissions, error states, and uncertain outcomes.
+ *   7. Safe Dry-Run Default: Runs full form population and CV attachment verification without submitting.
+ *   8. Standing Authorization for Approved Queue: When invoked with `--approved-queue`, automatically submits ready, validated applications (`--submit`) without prompting, and gracefully skips blockers (missing CV, CAPTCHA, uncertain, duplicate) to continue queue processing.
+ *   9. Multi-ATS Support: Certified for Ashby ATS (`jobs.ashbyhq.com`) and Greenhouse ATS (`boards.greenhouse.io`, `job-boards.greenhouse.io`).
+ *   10. Visual Audit Trail: Captures full-page screenshots for dry-runs, confirmed submissions, error states, and uncertain outcomes.
  */
 
 const fs = require('fs');
@@ -227,9 +228,12 @@ function resolveAndVerifyExactCV(jobId, companySlug, cvInput, approvedDir) {
   };
 }
 
-// Detect Statutory Country from Page Context and URL
-function detectCountry(pageText = '', urlStr = '') {
-  const text = (pageText + ' ' + urlStr).toLowerCase();
+// Detect Statutory Country from Page Context, URL, and CV path
+function detectCountry(pageText = '', urlStr = '', cvPath = '') {
+  const text = (pageText + ' ' + urlStr + ' ' + cvPath).toLowerCase();
+  if (text.includes('switzerland') || text.includes('schweiz') || text.includes('suisse') || text.includes('zurich') || text.includes('zürich') || text.includes('basel') || text.includes('geneva') || text.includes('genève') || text.includes('lausanne') || text.includes('bern')) {
+    return 'Switzerland';
+  }
   if (text.includes('amsterdam') || text.includes('netherlands') || text.includes('holland') || text.includes('/wetravel/')) {
     return 'Netherlands';
   }
@@ -280,7 +284,7 @@ async function runApplication(options) {
       console.log(`Previous submission record:`, existing);
       if (opts.approvedQueue) {
         console.log(`[QUEUE SKIP] Standing authorization skips already confirmed job ${jobId}.\n`);
-        return { status: 'SKIPPED_DUPLICATE', jobId, company, existing };
+        return { status: 'SKIPPED_DUPLICATE', jobId, company, existing, reason: 'Already submitted and confirmed' };
       }
       console.log(`(Pass --force to run a dry-run test anyway)\n`);
       process.exit(0);
@@ -292,7 +296,7 @@ async function runApplication(options) {
       console.log(`Automated retries are blocked until the application receipt is reconciled.`);
       if (opts.approvedQueue) {
         console.log(`[QUEUE SKIP] Standing authorization skips uncertain job ${jobId} to protect against duplicate submission.\n`);
-        return { status: 'SKIPPED_UNCERTAIN', jobId, company, existing };
+        return { status: 'SKIPPED_UNCERTAIN', jobId, company, existing, reason: 'Previous outcome uncertain; requires manual reconciliation' };
       }
       console.log(`(Pass --force to run a dry-run check anyway)\n`);
       process.exit(1);
@@ -458,7 +462,7 @@ async function runApplication(options) {
     // 4. Candidate Location (Greenhouse text / Ashby dropdown)
     const ghLocation = page.locator('#candidate-location').first();
     const ashbyLocation = page.locator('input[placeholder*="Start typing"]').or(page.getByRole('textbox', { name: /normally based|location|city/i })).first();
-    const cityTarget = country === 'Netherlands' ? 'Amsterdam, Netherlands' : (country === 'Germany' ? 'Berlin, Germany' : 'Bratislava, Slovakia');
+    const cityTarget = country === 'Switzerland' ? 'Zurich, Switzerland' : (country === 'Netherlands' ? 'Amsterdam, Netherlands' : (country === 'Germany' ? 'Berlin, Germany' : 'Bratislava, Slovakia'));
 
     if (await ghLocation.isVisible().catch(() => false)) {
       await ghLocation.click();
@@ -505,9 +509,9 @@ async function runApplication(options) {
       if (/authorized to work|legal right to work/i.test(questionText)) {
         const opt = statutory.authorizedInCountry ? 'yes' : 'no';
         await group.locator(`button[data-option="${opt}"], button:has-text("${opt === 'yes' ? 'Yes' : 'No'}")`).click();
-        summary['Question: Authorized to work'] = opt === 'yes' ? 'Yes' : 'No (Requires Visa/Blue Card)';
+        summary['Question: Authorized to work'] = opt === 'yes' ? 'Yes' : 'No (Requires Visa/Work Permit)';
         console.log(`[Form Question]: "${questionText}" -> Selected "${opt.toUpperCase()}" based on verified statutory profile.`);
-      } else if (/require sponsorship|visa sponsorship/i.test(questionText)) {
+      } else if (/require sponsorship|visa sponsorship|work permit/i.test(questionText)) {
         const opt = statutory.requiresSponsorship ? 'yes' : 'no';
         await group.locator(`button[data-option="${opt}"], button:has-text("${opt === 'yes' ? 'Yes' : 'No'}")`).click();
         summary['Question: Require sponsorship'] = opt === 'yes' ? 'Yes (Requires Sponsorship)' : 'No';
@@ -541,7 +545,7 @@ async function runApplication(options) {
           summary['Question: Authorized to work'] = opt;
           console.log(`[Form Question]: "${text}" -> Selected "${opt}" via React-select.`);
         }
-      } else if (/require.*sponsorship|visa sponsorship/i.test(text)) {
+      } else if (/require.*sponsorship|visa sponsorship|work permit/i.test(text)) {
         const opt = statutory.requiresSponsorship ? 'Yes' : 'No';
         const reactSelect = target.locator('..').locator('..');
         if (await reactSelect.locator('.select__input-container').count() > 0) {
@@ -554,15 +558,15 @@ async function runApplication(options) {
       } else if (/salary/i.test(text)) {
         const inputType = await target.getAttribute('type').catch(() => 'text');
         if (inputType === 'number') {
-          const numVal = country === 'Netherlands' ? '60000' : '48000';
+          const numVal = country === 'Switzerland' ? '110000' : (country === 'Netherlands' ? '60000' : '48000');
           await target.fill(numVal);
-          summary['Salary Expectations'] = `${numVal} EUR (numeric)`;
+          summary['Salary Expectations'] = `${numVal} (numeric)`;
         } else {
           await target.fill(cand.salaryExpectationEUR);
           summary['Salary Expectations'] = cand.salaryExpectationEUR;
         }
       } else if (/interest.*applying|why.*role|motivation/i.test(text)) {
-        const motivation = `Holding a Master's degree in Finance from TUKE with 3+ years in enterprise shared services (Infosys BPM, Holcim EMEA BSC), I have extensive experience in high-volume payroll reconciliations, general ledger close, and financial reporting in SAP ERP. I am motivated to leverage Python/Power BI to deliver scalable, accurate financial operations for ${company}.`;
+        const motivation = `Holding a Master's degree in Finance from TUKE with 3+ years in enterprise shared services (Infosys BPM, Holcim EMEA BSC), I have extensive experience in high-volume payroll reconciliations, general ledger close, and financial reporting in SAP ERP. I am motivated to leverage Python/Power BI to deliver scalable, accurate operations for ${company}.`;
         await target.fill(motivation);
         summary['Motivation'] = 'Populated verified profile facts';
       } else if (/passionate.*outside|outside of work/i.test(text)) {
@@ -648,7 +652,7 @@ async function runApplication(options) {
     const progressLocator = page.locator('[role="progressbar"], .progress-bar, progress');
     if (await progressLocator.count() > 0) {
       console.log('[Upload] Upload progress bar detected. Waiting for upload completion...');
-      await progressLocator.waitFor({ state: 'detached', timeout: 30000 }).catch(() => {});
+      await progressLocator.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
     }
     await page.waitForTimeout(4000);
 
@@ -681,7 +685,7 @@ async function runApplication(options) {
       console.log(`To execute actual submission, run with: --submit (or --approved-queue)\n`);
       await page.waitForTimeout(2000);
       await browser.close();
-      return { status: 'DRY_RUN_COMPLETED', jobId, company, summary };
+      return { status: 'DRY_RUN_COMPLETED', jobId, company, summary, screenshot: dryRunScreenshotPath };
     }
 
     // AUTHORIZED SUBMISSION PATH (STANDING AUTHORIZATION ACTIVE)
@@ -696,7 +700,6 @@ async function runApplication(options) {
     console.log('[Submit] Clicked Submit button. Waiting for confirmation...');
 
     // Wait for submission completion: either the submit button detaches OR a genuine confirmation element appears
-    console.log('[Submit] Clicked Submit button. Waiting for confirmation...');
     let submissionSuccess = false;
 
     try {
@@ -727,7 +730,6 @@ async function runApplication(options) {
       console.error(`\n[UNCERTAIN OUTCOME] Did not detect confirmed receipt page within timeout, or validation errors remain.`);
       console.error(`Screenshot saved for review: ${uncertainPath}`);
 
-      // Record UNCERTAIN in local history to block future retries
       saveSubmissionRecord(opts.history, {
         jobId,
         company,
@@ -742,7 +744,7 @@ async function runApplication(options) {
 
       await browser.close();
       if (opts.approvedQueue) {
-        return { status: 'UNCERTAIN', jobId, company, reason: 'Unconfirmed receipt or validation error' };
+        return { status: 'UNCERTAIN', jobId, company, reason: 'Unconfirmed receipt or validation error', screenshot: uncertainPath };
       }
       process.exit(1);
     }
@@ -753,7 +755,6 @@ async function runApplication(options) {
     console.log(`\n>>> SUBMISSION CONFIRMED <<<`);
     console.log(`Confirmation screenshot saved: ${confirmScreenshotPath}`);
 
-    // Save record to local submissions history
     const record = {
       jobId,
       company,
@@ -769,7 +770,7 @@ async function runApplication(options) {
 
     await page.waitForTimeout(2000);
     await browser.close();
-    return { status: 'CONFIRMED', jobId, company, record };
+    return { status: 'CONFIRMED', jobId, company, record, screenshot: confirmScreenshotPath };
   } catch (err) {
     console.error(`\n[Execution Error]: ${err.message}`);
     const errorScreenshot = path.join(opts.screenshotsDir, `${jobId}_error.png`);
@@ -780,7 +781,7 @@ async function runApplication(options) {
     await browser.close();
     if (opts.approvedQueue) {
       console.log(`[QUEUE BLOCKER] Application failed validation/execution: ${err.message}`);
-      return { status: 'BLOCKED_ERROR', jobId, company, reason: err.message };
+      return { status: 'BLOCKED_ERROR', jobId, company, reason: err.message, screenshot: errorScreenshot };
     }
     process.exit(1);
   }

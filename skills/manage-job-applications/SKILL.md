@@ -19,7 +19,15 @@ Follow the host's system instructions, tool policies and current user authorizat
 
 ## Learn from runs and reduce repeated work
 
-Use [learning and faster execution](references/learning.md) at the start and end of each working run. Reuse verified workflow knowledge from the user's private workspace, record demonstrated improvements and failures, and measure whether repeated steps become faster. Monitor mode stays read-only. Learning never changes submission authority, verified candidate facts or required CV audits.
+Use [learning and faster execution](references/learning.md) at the start and end of each working run. Reuse verified workflow knowledge from the user's private workspace, record demonstrated improvements and failures, and measure whether repeated steps become faster. Once a workflow is configured, repeated browser steps (discovery and application) execute locally via Playwright with zero AI model calls. Monitor mode stays read-only. Learning never changes submission authority, verified candidate facts or required CV audits. Keep private candidate profiles, CVs, browser profiles, and logs strictly in the private workspace, never in the public repository.
+
+## Local Playwright Discovery and Application Runner
+
+When asked to discover jobs locally, screen them, or prepare applications (e.g., *"Find 10 Swiss Data Analyst roles locally, screen them, and prepare eligible applications"*):
+1. **Discover**: Execute local Playwright discovery via `node skills/job-application/scripts/discover.js --role="<role>" --country="<country>" --limit=<N> --output="<path>"` (or via `skills/manage-job-applications/scripts/discover.js`). This searches jobs.ch and local portals deterministically with 0 AI model calls, captures title, employer, location, workload, contract type, source URL, and listing ID, deduplicates entries, and surfaces shortfalls without padding unrelated roles. Existing public ATS endpoints remain available. Discovery alone never authorizes an application.
+2. **Screen**: Job Search evaluates discovered listings against the candidate profile and 100-point fit rubric (skills 30, experience 25, education 15, location/eligibility 15, seniority 15). Only roles meeting the configured threshold (e.g. Swiss >= 85, Slovakia/Schengen >= 75) advance to preparation.
+3. **Prepare & Audit**: CV Creation produces a distinct, evidence-backed tailored CV embedding the exact target Job ID (`Company_Role_<Job_ID>_CV.pdf`). CV Audit independently inspects the rendered export against the live JD and release rules. Only an exact artifact with a `Pass` verdict is released.
+4. **Apply**: Application rechecks the live vacancy for active status (detecting 404 or closed status), matches the exact Job ID to the audited CV, and invokes the local Playwright runner (`node skills/job-application/scripts/apply.js --url=<url> --cv=<pdf>`). By default, it executes a safe dry-run, populating verified fields and capturing a pre-submission screenshot without submitting. When authorized, `--approved-queue` executes standing authorization on approved queues while gracefully skipping blockers (missing CV, CAPTCHA, uncertain status, duplicate). Stop or skip on expired listings, missing/mismatched CVs, unanswered questions, CAPTCHA, or uncertain submissions. Reconcile uncertain outcomes before retrying.
 
 ## Four specialist roles
 

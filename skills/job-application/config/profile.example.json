@@ -44,6 +44,11 @@
         "requiresSponsorship": true,
         "details": "Requires Dutch Highly Skilled Migrant (Kennismigrant) or EU Blue Card visa sponsorship"
       },
+      "Switzerland": {
+        "authorizedInCountry": false,
+        "requiresSponsorship": true,
+        "details": "Requires Swiss non-EU/third-country national work authorization / statutory work permit sponsorship"
+      },
       "DefaultSchengen": {
         "authorizedInCountry": false,
         "requiresSponsorship": true,
